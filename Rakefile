@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems haml bluecloth redcloth rack shared-mime-info].each do |lib|
+%w[rubygems haml bluecloth redcloth rack].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -80,6 +80,7 @@ file "layouts/default.haml" => ["layouts"] do |t|
 !!! Strict
 %html{html_attrs}
   %head
+    %meta{"http-equiv" => "Content-Type", "content" => "text/html, charset=utf-8"}
     %title Ruby on Warp drive!
     = link_style
   %body
@@ -146,17 +147,9 @@ module Rack
         end
 
         if ::File.file?(@path) && ::File.readable?(@path)
-          mime = MIME.check_magics(@path)
-          if mime
-            mime = mime.type
-          elsif mime = MIME.check(@path)
-            mime = mime.type
-          else
-            mime = "text/plain"
-          end
           [200, {
             "Last-Modified" => ::File.mtime(@path).rfc822,
-            "Content-Type" => mime,
+            "Content-Type" => Rack::File::MIME_TYPES[::File.extname(@path)[1..-1]] || "text/plain",
             "Content-Length" => ::File.size(@path).to_s
           }, self]
         else
