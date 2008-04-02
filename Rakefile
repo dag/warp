@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems haml bluecloth redcloth rack].each do |lib|
+%w[rubygems haml bluecloth redcloth rack shared-mime-info].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -130,21 +130,56 @@ end
 desc "Generate scaffold style, layout and view"
 task :scaffold => ["styles/global.sass", "layouts/default.haml", "views/index.markdown"]
 
+module Rack
+  module Adapter
+    class Warp
+      def call(env)
+        request = Rack::Request.new(env)
+        if request.path_info.include? ".."
+          return [403, {"Content-Type" => "text/plain"}, "Forbidden\n"]
+        end
+
+        if request.path_info == "/"
+          @path = "public/index.html"
+        else
+          @path = ::File.join("public", Utils.unescape(request.path_info))
+        end
+
+        if ::File.file?(@path) && ::File.readable?(@path)
+          mime = MIME.check_magics(@path)
+          if mime
+            mime = mime.type
+          elsif mime = MIME.check(@path)
+            mime = mime.type
+          else
+            mime = "text/plain"
+          end
+          [200, {
+            "Last-Modified" => ::File.mtime(@path).rfc822,
+            "Content-Type" => mime,
+            "Content-Length" => ::File.size(@path).to_s
+          }, self]
+        else
+          return [404, {"Content-Type" => "text/plain"}, "File not found: #{request.path_info}\n"]
+        end
+      end
+
+      def each
+        ::File.open(@path, "rb") do |f|
+          while part = f.read(8192)
+            yield part
+          end
+        end
+      end
+    end
+  end
+end
+
 desc "Serve content with Rack"
 task :serve do
   handler = ENV["HANDLER"] || "Mongrel"
   port = ENV["PORT"] || 5000
-  app = proc do |env|
-    request = Rack::Request.new(env)
-    if request.path_info == "/"
-      [200, {
-        "Last-Modified" => File.mtime("public/index.html").rfc822,
-        "Content-Type" => "text/html"
-       }, File.read("public/index.html")]
-    else
-      Rack::File.new("public").call(env)
-    end
-  end
+  app = Rack::Adapter::Warp.new 
   begin
     Rack::Handler.const_get(handler).run(app, :Port => port)
   rescue LoadError
