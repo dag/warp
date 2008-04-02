@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems haml bluecloth redcloth].each do |lib|
+%w[rubygems haml bluecloth redcloth rack].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -129,3 +129,26 @@ end
 
 desc "Generate scaffold style, layout and view"
 task :scaffold => ["styles/global.sass", "layouts/default.haml", "views/index.markdown"]
+
+desc "Serve content with Rack"
+task :serve do
+  handler = ENV["HANDLER"] || "Mongrel"
+  port = ENV["PORT"] || 5000
+  app = proc do |env|
+    request = Rack::Request.new(env)
+    if request.path_info == "/"
+      [200, {
+        "Last-Modified" => File.mtime("public/index.html").rfc822,
+        "Content-Type" => "text/html"
+       }, File.read("public/index.html")]
+    else
+      Rack::File.new("public").call(env)
+    end
+  end
+  begin
+    Rack::Handler.const_get(handler).run(app, :Port => port)
+  rescue LoadError
+    Rack::Handler::WEBrick.run(app, :Port => port)
+  rescue Interrupt
+  end
+end
