@@ -115,14 +115,14 @@ file "styles/global.sass" => ["styles"] do |t|
 !blue = #4183C4
 
 *
-  font-family: helvetica,arial,clean,sans-serif
+  :font-family helvetica,arial,clean,sans-serif
 
 ul
-  list-style-type: square
+  :list-style-type square
 
 a
-  color= !blue
-  text-decoration: none
+  :color = !blue
+  :text-decoration none
 eof
   end
 end
