@@ -73,9 +73,11 @@ directory "layouts"
 directory "views"
 directory "styles"
 
-file "layouts/default.haml" => ["layouts"] do |t|
-  File.open(t.name, "w+") do |f|
-    f.write(<<eof)
+desc "Generate scaffold style, layout and view"
+task :scaffold => ["styles", "layouts", "views"] do
+  unless File.exist?("layouts/default.haml")
+    File.open("layouts/default.haml", "w+") do |f|
+      f.write(<<eof)
 !!! XML
 !!! Strict
 %html{html_attrs}
@@ -92,12 +94,11 @@ file "layouts/default.haml" => ["layouts"] do |t|
           %li= link_to :index, "Home"
       #content= yield
 eof
+    end
   end
-end
-
-file "views/index.markdown" => ["views"] do |t|
-  File.open(t.name, "w+") do |f|
-    f.write(<<eof)
+  unless File.exist?("views/index.markdown")
+    File.open("views/index.markdown", "w+") do |f|
+      f.write(<<eof)
 Features
 --------
 
@@ -107,12 +108,11 @@ Features
 * Secure
 * Simple
 eof
+    end
   end
-end
-
-file "styles/global.sass" => ["styles"] do |t|
-  File.open(t.name, "w+") do |f|
-    f.write(<<eof)
+  unless File.exist?("styles/global.sass")
+    File.open("styles/global.sass", "w+") do |f|
+      f.write(<<eof)
 !blue = #4183C4
 
 *
@@ -125,11 +125,9 @@ a
   :color = !blue
   :text-decoration none
 eof
+    end
   end
 end
-
-desc "Generate scaffold style, layout and view"
-task :scaffold => ["styles/global.sass", "layouts/default.haml", "views/index.markdown"]
 
 module Rack
   module Adapter
