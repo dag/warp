@@ -35,7 +35,7 @@ directory "public/stylesheets"
 rule ".html" => proc {|view| "views/#{shortfile(view)}.markdown" } do |t|
   File.open(t.name, "w+") do |f|
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml")).to_html {
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
       BlueCloth.new(File.read(t.source)).to_html
     })
   end
@@ -44,7 +44,7 @@ end
 rule ".html" => proc {|view| "views/#{shortfile(view)}.textile" } do |t|
   File.open(t.name, "w+") do |f|
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml")).to_html {
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
       RedCloth.new(File.read(t.source)).to_html
     })
   end
@@ -52,7 +52,7 @@ end
 
 rule ".css" => proc {|task_name| "styles/#{shortfile(task_name)}.sass" } do |t|
   File.open(t.name, "w+") do |f|
-    f.write(Sass::Engine.new(File.read(t.source)).render)
+    f.write(Sass::Engine.new(File.read(t.source), :filename => t.source, :load_paths => ["styles"]).render)
   end
 end
 
