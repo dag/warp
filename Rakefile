@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems haml erb bluecloth redcloth rack].each do |lib|
+%w[rubygems yaml haml erb bluecloth redcloth rack].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -32,42 +32,61 @@ task :default => [:compile]
 directory "public"
 directory "public/stylesheets"
 
+def load_view_variables(view, o)
+  if File.exist?("configs/views.yml")
+    @config_views ||= YAML.load_file("configs/views.yml") rescue {}
+    @config_views.each {|key, value| @config_views[key.to_s] = value }
+    @config_views[view].each do |key, value|
+      o.instance_variable_set "@#{key}".to_sym, value
+    end if @config_views.include?(view)
+    o.instance_variable_set :@view, view
+  end
+end
+
 rule ".html" => proc {|view| "views/#{shortfile(view)}.markdown" } do |t|
   File.open(t.name, "w+") do |f|
+    scope = Object.new
+    load_view_variables(shortfile(t.name), scope)
     include ERB::Util
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      BlueCloth.new(ERB.new(File.read(t.source)).result).to_html
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
+      BlueCloth.new(ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })).to_html
     })
   end
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.textile" } do |t|
   File.open(t.name, "w+") do |f|
+    scope = Object.new
+    load_view_variables(shortfile(t.name), scope)
     include ERB::Util
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      RedCloth.new(ERB.new(File.read(t.source)).result).to_html
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
+      RedCloth.new(ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })).to_html
     })
   end
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.erb" } do |t|
   File.open(t.name, "w+") do |f|
+    scope = Object.new
+    load_view_variables(shortfile(t.name), scope)
     include ERB::Util
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      ERB.new(File.read(t.source)).result
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
+      ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })
     })
   end
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.haml" } do |t|
   File.open(t.name, "w+") do |f|
+    scope = Object.new
+    load_view_variables(shortfile(t.name), scope)
     include ERB::Util
     include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      Haml::Engine.new(File.read(t.source), :filename => t.source).to_html
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
+      Haml::Engine.new(File.read(t.source), :filename => t.source).to_html(scope)
     })
   end
 end
@@ -91,12 +110,21 @@ task :compile => ["public", "public/stylesheets"] + PAGES + STYLES
 desc "Recompile pages and stylesheets"
 task :recompile => [:clean, :compile]
 
+directory "configs"
 directory "layouts"
 directory "views"
 directory "styles"
 
 desc "Generate scaffold style, layout and view"
-task :scaffold => ["styles", "layouts", "views"] do
+task :scaffold => ["configs", "styles", "layouts", "views"] do
+  unless File.exist?("configs/views.yml")
+    File.open("configs/views.yml", "w+") do |f|
+      f.write(<<eof)
+index:
+  title: Ruby on Warp drive&#8212;Home
+eof
+    end
+  end
   unless File.exist?("layouts/default.haml")
     File.open("layouts/default.haml", "w+") do |f|
       f.write(<<eof)
@@ -105,7 +133,7 @@ task :scaffold => ["styles", "layouts", "views"] do
 %html{html_attrs}
   %head
     %meta{"http-equiv" => "Content-Type", "content" => "text/html, charset=utf-8"}
-    %title Ruby on Warp drive!
+    %title= @title
     = link_style
   %body
     #container
