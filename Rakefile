@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems haml bluecloth redcloth rack].each do |lib|
+%w[rubygems haml erb bluecloth redcloth rack].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -34,18 +34,20 @@ directory "public/stylesheets"
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.markdown" } do |t|
   File.open(t.name, "w+") do |f|
+    include ERB::Util
     include Helpers
     f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      BlueCloth.new(File.read(t.source)).to_html
+      BlueCloth.new(ERB.new(File.read(t.source)).result).to_html
     })
   end
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.textile" } do |t|
   File.open(t.name, "w+") do |f|
+    include ERB::Util
     include Helpers
     f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
-      RedCloth.new(File.read(t.source)).to_html
+      RedCloth.new(ERB.new(File.read(t.source)).result).to_html
     })
   end
 end
