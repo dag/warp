@@ -16,9 +16,9 @@ PAGES = Dir["views/*"].map {|p| "public/#{shortfile(p)}.html" }
 STYLES = Dir["styles/*"].map {|s| "public/stylesheets/#{shortfile(s)}.css" }
 
 module Helpers
-  def link_style(stylesheet="*")
+  def link_style(stylesheet="*", media=:screen)
     Dir["styles/#{stylesheet}.sass"].map do |style|
-      "<link href='stylesheets/#{shortfile(style)}.css' media='screen' rel='stylesheet' type='text/css' />"
+      "<link href='stylesheets/#{shortfile(style)}.css' media='#{media}' rel='stylesheet' type='text/css' />"
     end.join("\n")
   end
 
