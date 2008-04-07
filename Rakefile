@@ -62,6 +62,16 @@ rule ".html" => proc {|view| "views/#{shortfile(view)}.erb" } do |t|
   end
 end
 
+rule ".html" => proc {|view| "views/#{shortfile(view)}.haml" } do |t|
+  File.open(t.name, "w+") do |f|
+    include ERB::Util
+    include Helpers
+    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html {
+      Haml::Engine.new(File.read(t.source), :filename => t.source).to_html
+    })
+  end
+end
+
 rule ".css" => proc {|task_name| "styles/#{shortfile(task_name)}.sass" } do |t|
   File.open(t.name, "w+") do |f|
     f.write(Sass::Engine.new(File.read(t.source), :filename => t.source, :load_paths => ["styles"]).render)
