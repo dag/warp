@@ -17,15 +17,105 @@ end
 PAGES = Dir["views/*"].map {|p| "public/#{File.shortname(p)}.html" }
 STYLES = Dir["styles/*"].map {|s| "public/stylesheets/#{File.shortname(s)}.css" }
 
-module Helpers
-  def link_style(stylesheet="*", media=:screen)
-    Dir["styles/#{stylesheet}.sass"].map do |style|
-      "<link href='stylesheets/#{File.shortname(style)}.css' media='#{media}' rel='stylesheet' type='text/css' />"
-    end.join("\n")
+module Warp
+  module Helpers
+    def link_style(stylesheet="*", media=:screen)
+      Dir["styles/#{stylesheet}.sass"].map do |style|
+        "<link href='stylesheets/#{File.shortname(style)}.css' media='#{media}' rel='stylesheet' type='text/css' />"
+      end.join("\n")
+    end
+
+    def link_to(page, text=nil)
+      "<a href='#{page}.html'>#{text || page.to_s.capitalize}</a>"
+    end
   end
 
-  def link_to(page, text=nil)
-    "<a href='#{page}.html'>#{text || page.to_s.capitalize}</a>"
+  class Page
+    include ERB::Util
+    include Helpers
+
+    def initialize(view)
+      @view = view
+      @page = File.shortname(view)
+      if File.exist?("configs/pages.yml")
+        @@config_pages ||= YAML.load_file("configs/pages.yml") rescue {}
+        @@config_pages.each {|key, value| @@config_pages[key.to_s] = value }
+        @@config_pages[@page].each do |key, value|
+          instance_variable_set "@#{key}".to_sym, value
+        end if @@config_pages.include?(@page)
+      end
+      @layout ||= "default"
+    end
+
+    def to_html
+      render_layout { render_view }
+    end
+
+    private
+
+    def render_layout
+      layout_file = Dir["layouts/#@layout.*"].first
+      case File.extname(layout_file)[1..-1].to_sym
+      when :haml
+        Haml::Engine.new(File.read(layout_file), :filename => layout_file).to_html(self) { yield }
+      when :erb
+        ERB.new(File.read(layout_file)).result(binding()) { yield }
+      when :textile
+        RedCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
+      when :markdown
+        BlueCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
+      end
+    end
+
+    def render_view
+      case File.extname(@view)[1..-1].to_sym
+      when :markdown
+        BlueCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
+      when :textile
+        RedCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
+      when :haml
+        Haml::Engine.new(File.read(@view), :filename => @view).to_html(self)
+      when :erb
+        ERB.new(File.read(@view)).result(binding())
+      end
+    end
+  end
+end
+
+module Rack
+  module Adapter
+    class Warp
+      def call(env)
+        request = Rack::Request.new(env)
+        if request.path_info.include? ".."
+          return [403, {"Content-Type" => "text/plain"}, "Forbidden\n"]
+        end
+
+        if request.path_info == "/"
+          @path = "public/index.html"
+        else
+          @path = ::File.join("public", Utils.unescape(request.path_info))
+        end
+
+        if ::File.file?(@path) && ::File.readable?(@path)
+          [200, {
+            "Last-Modified" => ::File.mtime(@path).rfc822,
+            "Content-Type" => Rack::File::MIME_TYPES[::File.extname(@path)[1..-1]] || "text/plain",
+            "Content-Length" => ::File.size(@path).to_s
+          }, self]
+        else
+          return [404, {"Content-Type" => "text/plain"}, "File not found: #{request.path_info}\n"]
+        end
+      end
+
+      def each
+        ::File.open(@path, "rb") do |f|
+          while part = f.read(8192)
+            yield part
+          end
+        end
+      end
+    end
   end
 end
 
@@ -34,71 +124,20 @@ task :default => [:compile]
 directory "public"
 directory "public/stylesheets"
 
-class Page
-  include ERB::Util
-  include Helpers
-
-  def initialize(view)
-    @view = view
-    @page = File.shortname(view)
-    if File.exist?("configs/pages.yml")
-      @@config_pages ||= YAML.load_file("configs/pages.yml") rescue {}
-      @@config_pages.each {|key, value| @@config_pages[key.to_s] = value }
-      @@config_pages[@page].each do |key, value|
-        instance_variable_set "@#{key}".to_sym, value
-      end if @@config_pages.include?(@page)
-    end
-    @layout ||= "default"
-  end
-
-  def to_html
-    render_layout { render_view }
-  end
-
-  private
-
-  def render_layout
-    layout_file = Dir["layouts/#@layout.*"].first
-    case File.extname(layout_file)[1..-1].to_sym
-    when :haml
-      Haml::Engine.new(File.read(layout_file), :filename => layout_file).to_html(self) { yield }
-    when :erb
-      ERB.new(File.read(layout_file)).result(binding()) { yield }
-    when :textile
-      RedCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
-    when :markdown
-      BlueCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
-    end
-  end
-
-  def render_view
-    case File.extname(@view)[1..-1].to_sym
-    when :markdown
-      BlueCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
-    when :textile
-      RedCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
-    when :haml
-      Haml::Engine.new(File.read(@view), :filename => @view).to_html(self)
-    when :erb
-      ERB.new(File.read(@view)).result(binding())
-    end
-  end
-end
-
 rule ".html" => proc {|view| "views/#{File.shortname(view)}.markdown" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
+  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{File.shortname(view)}.textile" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
+  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{File.shortname(view)}.erb" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
+  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{File.shortname(view)}.haml" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
+  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
 end
 
 rule ".css" => proc {|task_name| "styles/#{File.shortname(task_name)}.sass" } do |t|
@@ -185,43 +224,6 @@ a
   :color = !blue
   :text-decoration none
 eof
-    end
-  end
-end
-
-module Rack
-  module Adapter
-    class Warp
-      def call(env)
-        request = Rack::Request.new(env)
-        if request.path_info.include? ".."
-          return [403, {"Content-Type" => "text/plain"}, "Forbidden\n"]
-        end
-
-        if request.path_info == "/"
-          @path = "public/index.html"
-        else
-          @path = ::File.join("public", Utils.unescape(request.path_info))
-        end
-
-        if ::File.file?(@path) && ::File.readable?(@path)
-          [200, {
-            "Last-Modified" => ::File.mtime(@path).rfc822,
-            "Content-Type" => Rack::File::MIME_TYPES[::File.extname(@path)[1..-1]] || "text/plain",
-            "Content-Length" => ::File.size(@path).to_s
-          }, self]
-        else
-          return [404, {"Content-Type" => "text/plain"}, "File not found: #{request.path_info}\n"]
-        end
-      end
-
-      def each
-        ::File.open(@path, "rb") do |f|
-          while part = f.read(8192)
-            yield part
-          end
-        end
-      end
     end
   end
 end
