@@ -60,6 +60,8 @@ class Page
     case File.extname(layout_file)[1..-1].to_sym
     when :haml
       Haml::Engine.new(File.read(layout_file), :filename => layout_file).to_html(self) { yield }
+    when :erb
+      ERB.new(File.read(layout_file)).result(binding()) { yield }
     end
   end
 
