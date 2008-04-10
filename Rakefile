@@ -32,63 +32,65 @@ task :default => [:compile]
 directory "public"
 directory "public/stylesheets"
 
-def load_view_variables(view, o)
-  if File.exist?("configs/views.yml")
-    @config_views ||= YAML.load_file("configs/views.yml") rescue {}
-    @config_views.each {|key, value| @config_views[key.to_s] = value }
-    @config_views[view].each do |key, value|
-      o.instance_variable_set "@#{key}".to_sym, value
-    end if @config_views.include?(view)
-    o.instance_variable_set :@view, view
+class Page
+  include ERB::Util
+  include Helpers
+
+  def initialize(view)
+    @view = view
+    @page = shortfile(view)
+    if File.exist?("configs/pages.yml")
+      @@config_pages ||= YAML.load_file("configs/pages.yml") rescue {}
+      @@config_pages.each {|key, value| @@config_pages[key.to_s] = value }
+      @@config_pages[@page].each do |key, value|
+        instance_variable_set "@#{key}".to_sym, value
+      end if @@config_pages.include?(@page)
+    end
+    @layout ||= "default"
+  end
+
+  def to_html
+    render_layout { render_view }
+  end
+
+  private
+
+  def render_layout
+    layout_file = Dir["layouts/#@layout.*"].first
+    case File.extname(layout_file)[1..-1].to_sym
+    when :haml
+      Haml::Engine.new(File.read(layout_file), :filename => layout_file).to_html(self) { yield }
+    end
+  end
+
+  def render_view
+    case File.extname(@view)[1..-1].to_sym
+    when :markdown
+      BlueCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
+    when :textile
+      RedCloth.new(ERB.new(File.read(@view)).result(binding())).to_html
+    when :haml
+      Haml::Engine.new(File.read(@view), :filename => @view).to_html(self)
+    when :erb
+      ERB.new(File.read(@view)).result(binding())
+    end
   end
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.markdown" } do |t|
-  File.open(t.name, "w+") do |f|
-    scope = Object.new
-    load_view_variables(shortfile(t.name), scope)
-    include ERB::Util
-    include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
-      BlueCloth.new(ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })).to_html
-    })
-  end
+  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.textile" } do |t|
-  File.open(t.name, "w+") do |f|
-    scope = Object.new
-    load_view_variables(shortfile(t.name), scope)
-    include ERB::Util
-    include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
-      RedCloth.new(ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })).to_html
-    })
-  end
+  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.erb" } do |t|
-  File.open(t.name, "w+") do |f|
-    scope = Object.new
-    load_view_variables(shortfile(t.name), scope)
-    include ERB::Util
-    include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
-      ERB.new(File.read(t.source)).result(scope.instance_eval { binding() })
-    })
-  end
+  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
 rule ".html" => proc {|view| "views/#{shortfile(view)}.haml" } do |t|
-  File.open(t.name, "w+") do |f|
-    scope = Object.new
-    load_view_variables(shortfile(t.name), scope)
-    include ERB::Util
-    include Helpers
-    f.write(Haml::Engine.new(File.read("layouts/default.haml"), :filename => "layouts/default.haml").to_html(scope) {
-      Haml::Engine.new(File.read(t.source), :filename => t.source).to_html(scope)
-    })
-  end
+  File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
 rule ".css" => proc {|task_name| "styles/#{shortfile(task_name)}.sass" } do |t|
@@ -117,8 +119,8 @@ directory "styles"
 
 desc "Generate scaffold style, layout and view"
 task :scaffold => ["configs", "styles", "layouts", "views"] do
-  unless File.exist?("configs/views.yml")
-    File.open("configs/views.yml", "w+") do |f|
+  unless File.exist?("configs/pages.yml")
+    File.open("configs/pages.yml", "w+") do |f|
       f.write(<<eof)
 index:
   title: Ruby on Warp drive&#8212;Home
