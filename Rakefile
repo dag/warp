@@ -8,17 +8,19 @@
   end
 end
 
-def shortfile(filename)
-  File.basename(filename[0..-File.extname(filename).length-1])
+class File
+  def self.shortname(filename)
+    basename(filename[0..-extname(filename).length-1])
+  end
 end
 
-PAGES = Dir["views/*"].map {|p| "public/#{shortfile(p)}.html" }
-STYLES = Dir["styles/*"].map {|s| "public/stylesheets/#{shortfile(s)}.css" }
+PAGES = Dir["views/*"].map {|p| "public/#{File.shortname(p)}.html" }
+STYLES = Dir["styles/*"].map {|s| "public/stylesheets/#{File.shortname(s)}.css" }
 
 module Helpers
   def link_style(stylesheet="*", media=:screen)
     Dir["styles/#{stylesheet}.sass"].map do |style|
-      "<link href='stylesheets/#{shortfile(style)}.css' media='#{media}' rel='stylesheet' type='text/css' />"
+      "<link href='stylesheets/#{File.shortname(style)}.css' media='#{media}' rel='stylesheet' type='text/css' />"
     end.join("\n")
   end
 
@@ -38,7 +40,7 @@ class Page
 
   def initialize(view)
     @view = view
-    @page = shortfile(view)
+    @page = File.shortname(view)
     if File.exist?("configs/pages.yml")
       @@config_pages ||= YAML.load_file("configs/pages.yml") rescue {}
       @@config_pages.each {|key, value| @@config_pages[key.to_s] = value }
@@ -83,23 +85,23 @@ class Page
   end
 end
 
-rule ".html" => proc {|view| "views/#{shortfile(view)}.markdown" } do |t|
+rule ".html" => proc {|view| "views/#{File.shortname(view)}.markdown" } do |t|
   File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
-rule ".html" => proc {|view| "views/#{shortfile(view)}.textile" } do |t|
+rule ".html" => proc {|view| "views/#{File.shortname(view)}.textile" } do |t|
   File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
-rule ".html" => proc {|view| "views/#{shortfile(view)}.erb" } do |t|
+rule ".html" => proc {|view| "views/#{File.shortname(view)}.erb" } do |t|
   File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
-rule ".html" => proc {|view| "views/#{shortfile(view)}.haml" } do |t|
+rule ".html" => proc {|view| "views/#{File.shortname(view)}.haml" } do |t|
   File.open(t.name, "w+") {|f| f.write(Page.new(t.source).to_html) }
 end
 
-rule ".css" => proc {|task_name| "styles/#{shortfile(task_name)}.sass" } do |t|
+rule ".css" => proc {|task_name| "styles/#{File.shortname(task_name)}.sass" } do |t|
   File.open(t.name, "w+") do |f|
     f.write(Sass::Engine.new(File.read(t.source), :filename => t.source, :load_paths => ["styles"]).render)
   end
