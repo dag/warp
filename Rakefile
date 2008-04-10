@@ -85,35 +85,14 @@ end
 module Rack
   module Adapter
     class Warp
-      def call(env)
-        request = Rack::Request.new(env)
-        if request.path_info.include? ".."
-          return [403, {"Content-Type" => "text/plain"}, "Forbidden\n"]
-        end
-
-        if request.path_info == "/"
-          @path = "public/index.html"
-        else
-          @path = ::File.join("public", Utils.unescape(request.path_info))
-        end
-
-        if ::File.file?(@path) && ::File.readable?(@path)
-          [200, {
-            "Last-Modified" => ::File.mtime(@path).rfc822,
-            "Content-Type" => Rack::File::MIME_TYPES[::File.extname(@path)[1..-1]] || "text/plain",
-            "Content-Length" => ::File.size(@path).to_s
-          }, self]
-        else
-          return [404, {"Content-Type" => "text/plain"}, "File not found: #{request.path_info}\n"]
-        end
+      def initialize
+        @app = File.new("public")
       end
 
-      def each
-        ::File.open(@path, "rb") do |f|
-          while part = f.read(8192)
-            yield part
-          end
-        end
+      def call(env)
+        request = Request.new(env)
+        request.path_info = "/index.html" if request.path_info == "/"
+        @app.call(env)
       end
     end
   end
