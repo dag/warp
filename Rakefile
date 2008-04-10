@@ -62,6 +62,8 @@ class Page
       Haml::Engine.new(File.read(layout_file), :filename => layout_file).to_html(self) { yield }
     when :erb
       ERB.new(File.read(layout_file)).result(binding()) { yield }
+    when :textile
+      RedCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
     end
   end
 
