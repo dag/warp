@@ -64,6 +64,8 @@ class Page
       ERB.new(File.read(layout_file)).result(binding()) { yield }
     when :textile
       RedCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
+    when :markdown
+      BlueCloth.new(ERB.new(File.read(layout_file)).result(binding())).to_html { yield }
     end
   end
 
