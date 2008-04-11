@@ -103,20 +103,10 @@ task :default => [:compile]
 directory "public"
 directory "public/stylesheets"
 
-rule ".html" => proc {|view| "views/#{File.shortname(view)}.markdown" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
-end
-
-rule ".html" => proc {|view| "views/#{File.shortname(view)}.textile" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
-end
-
-rule ".html" => proc {|view| "views/#{File.shortname(view)}.erb" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
-end
-
-rule ".html" => proc {|view| "views/#{File.shortname(view)}.haml" } do |t|
-  File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
+%w(markdown textile erb haml).each do |view_type|
+  rule ".html" => proc {|view| "views/#{File.shortname(view)}.#{view_type}" } do |t|
+    File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
+  end
 end
 
 rule ".css" => proc {|task_name| "styles/#{File.shortname(task_name)}.sass" } do |t|
