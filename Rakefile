@@ -1,7 +1,7 @@
 # Copyright (C) 2008 Dag Odenhall <dag.odenhall@gmail.com>
 # Licensed under the Academic Free License version 3.0
 
-%w[rubygems yaml haml erb bluecloth redcloth rack].each do |lib|
+%w[rubygems yaml haml erb bluecloth redcloth rdoc/markup/simple_markup rdoc/markup/simple_markup/to_html rack].each do |lib|
   begin
     require lib
   rescue LoadError
@@ -77,6 +77,8 @@ module Warp
         Haml::Engine.new(File.read(@view), :filename => @view).to_html(self)
       when :erb
         ERB.new(File.read(@view)).result(binding())
+      when :rdoc
+        SM::SimpleMarkup.new.convert(ERB.new(File.read(@view)).result(binding()), SM::ToHtml.new)
       end
     end
   end
@@ -103,7 +105,7 @@ task :default => [:compile]
 directory "public"
 directory "public/stylesheets"
 
-%w(markdown textile erb haml).each do |view_type|
+%w(markdown textile erb haml rdoc).each do |view_type|
   rule ".html" => proc {|view| "views/#{File.shortname(view)}.#{view_type}" } do |t|
     File.open(t.name, "w+") {|f| f.write(Warp::Page.new(t.source).to_html) }
   end
